@@ -1,0 +1,67 @@
+org: mortalife
+app: typescript-http-api-assessment
+service: typescript-http-api-assessment
+frameworkVersion: "3"
+
+provider:
+  name: aws
+  region: eu-west-1
+  runtime: nodejs18.x
+  httpApi:
+    cors: true
+    authorizers:
+      customAuth:
+        type: request
+        functionName: customAuth
+        enableSimpleResponses: true
+  environment:
+    DYNAMODB_TABLE: ${self:service}-${sls:stage}
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - dynamodb:Query
+            - dynamodb:Scan
+            - dynamodb:GetItem
+            - dynamodb:PutItem
+            - dynamodb:UpdateItem
+            - dynamodb:DeleteItem
+          Resource: "arn:aws:dynamodb:${aws:region}:*:table/${self:provider.environment.DYNAMODB_TABLE}"
+
+functions:
+  domain:
+    handler: handler.domainTest
+    events:
+      - httpApi:
+          path: /
+          method: post
+          authorizer:
+            name: customAuth
+  generate:
+    handler: handler.generateTestDocs
+    events:
+      - httpApi:
+          path: /gen
+          method: get
+
+  customAuth:
+    handler: handler.auth
+
+resources:
+  Resources:
+    DomainsDynamoDbTable:
+      Type: "AWS::DynamoDB::Table"
+      DeletionPolicy: Retain
+      Properties:
+        AttributeDefinitions:
+          - AttributeName: Domain
+            AttributeType: S
+        KeySchema:
+          - AttributeName: Domain
+            KeyType: HASH
+        BillingMode: PAY_PER_REQUEST
+        TableName: ${self:provider.environment.DYNAMODB_TABLE}
+
+plugins:
+  - serverless-plugin-typescript
